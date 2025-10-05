@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ExoPlanetHunt — Exoplanet Hunter
 
 ExoPlanetHunt is an AI-first, interactive web application that demonstrates how automated models can assist in exoplanet discovery by scoring and prioritizing candidates from Kepler mission data.
@@ -72,3 +73,7 @@ About the Chatbot
 - A lightweight client-side AI Chatbot is included in the site. It is trained on a local knowledge base (project mission, dataset, model details, usage FAQ).
 - The bot is retrieval-based: it preprocesses the knowledge entries, computes a simple similarity score at runtime, and returns the best answer. This keeps everything local and fast (no server required).
 - To extend training: edit the knowledge entries in the index.html/classifier.html JS array or add new FAQs, then reload the page.
+=======
+# A-World-Away-Hunting-for-Exo-Planets-with-AI
+An AI/ML model to identify exoplanets from NASA's Kepler mission data. Created for the NASA Space Apps Challenge 2025.
+>>>>>>> 5e10f644ede72ad0044eb9c045763a0785fd3fa1
