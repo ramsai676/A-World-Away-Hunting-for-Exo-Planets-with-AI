@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExoPlanetHunt — Planet Classifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --deep-space: #000010;
+            --slate-light: #e5e7eb;
+            --slate-dark: #1e293b;
+            --panel-bg: rgba(15, 23, 42, 0.8);
+            --sky-glow: rgba(56, 189, 248, 0.5);
+            --magenta-glow: rgba(217, 70, 239, 0.5);
+        }
+        html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--deep-space);
+            color: var(--slate-light);
+            overflow-x: hidden;
+            /* show custom cursor like the main page */
+            cursor: none;
+        }
+        #interactive-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .custom-cursor { position: fixed; width: 40px; height: 40px; border: 2px solid rgba(217, 70, 239, 0.7); border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); transition: transform 0.1s ease-out, background-color 0.2s ease; z-index: 9999; }
+        .custom-cursor.active { background-color: var(--magenta-glow); }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        .ui-panel { background: var(--panel-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--slate-dark); border-radius: 0.75rem; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
+        .cta-button {
+            transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+            box-shadow: 0 14px 40px rgba(99,102,241,0.12), 0 6px 18px rgba(15,23,42,0.6), 0 0 14px rgba(217,70,239,0.06) inset;
+            position: relative;
+            z-index: 60;
+        }
+        .cta-button:focus { outline: 3px solid rgba(99,102,241,0.18); outline-offset: 4px; }
+        .cta-button:hover { transform: translateY(-2px) scale(1.02); }
+        .cta-button:active { transform: translateY(3px) scale(0.995); box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+        @keyframes ctaPulse { 0% { transform: scale(1); } 50% { transform: scale(1.01);} 100% { transform: scale(1); } }
+        .cta-button.pulse { animation: ctaPulse 4s ease-in-out infinite; }
+        html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--deep-space);
+            color: var(--slate-light);
+            overflow-x: hidden;
+            /* show custom cursor like the main page */
+            cursor: none;
+        }
+        #interactive-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .custom-cursor { position: fixed; width: 40px; height: 40px; border: 2px solid rgba(217, 70, 239, 0.7); border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); transition: transform 0.1s ease-out, background-color 0.2s ease; z-index: 9999; }
+        .custom-cursor.active { background-color: var(--magenta-glow); }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        .ui-panel { background: var(--panel-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--slate-dark); border-radius: 0.75rem; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
+        .cta-button {
+            transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+            box-shadow: 0 14px 40px rgba(99,102,241,0.12), 0 6px 18px rgba(15,23,42,0.6), 0 0 14px rgba(217,70,239,0.06) inset;
+            position: relative;
+            z-index: 60;
+        }
+        .cta-button:focus { outline: 3px solid rgba(99,102,241,0.18); outline-offset: 4px; }
+        .cta-button:hover { transform: translateY(-2px) scale(1.02); }
+        .cta-button:active { transform: translateY(3px) scale(0.995); box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+        @keyframes ctaPulse { 0% { transform: scale(1); } 50% { transform: scale(1.01);} 100% { transform: scale(1); } }
+        .cta-button.pulse { animation: ctaPulse 4s ease-in-out infinite; }
+        /* pressed / "down" visual state for the button */
+        .cta-button:active { transform: translateY(3px) scale(0.995); box-shadow: 0 6px 18px rgba(0,0,0,0.6), 0 0 12px rgba(56,189,248,0.08) inset; }
+        .page-section { min-height: 100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:2rem; width:100%; }
+        header { z-index: 1000; position: fixed; width: 100%; top: 0; left: 0; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--slate-dark); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px);} to { opacity:1; transform: translateY(0);} }
+        .fade-in { animation: fadeIn 1s ease-out forwards; }
+
+        /* keep local classifier-specific helpers */
+        .glass-card { background: var(--panel-bg); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        .result-card {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .result-card.show {
+            display: block;
+            opacity: 1;
+        }
+        .progress-bar-container {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            transition: width 0.5s ease-in-out;
+        }
+        .loader {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* hero wrapper gives predictable space below the fixed header */
+        .hero-wrap { padding-top: calc(5rem + 6vh); } /* responsive space under top nav */
+    </style>
+</head>
+<body>
+    <div class="custom-cursor" id="cursor"></div>
+    <canvas id="interactive-canvas"></canvas>
+
+    <header>
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center">
+                    <a href="index.html" class="flex-shrink-0">
+                        <img id="site-logo" class="h-12 w-12" src="logo.png" alt="ExoPlanetHunt logo" onerror="this.style.opacity=0.0">
+                    </a>
+                    <div class="ml-4">
+                        <a href="index.html" class="font-orbitron text-2xl font-bold text-white">ExoPlanetHunt</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="w-full">
+    <!-- use hero-wrap for responsive spacing under the fixed header -->
+    <div class="w-full max-w-2xl mx-auto hero-wrap">
+         <div class="glass-card rounded-2xl p-6 md:p-10 shadow-2xl" style="position:relative; z-index:50;">
+             <header class="text-center mb-8">
+                 <h1 class="text-3xl md:text-4xl font-bold text-white">Planet Classifier</h1>
+                 <p class="text-gray-400 mt-2">Is it a planet? Click the button to analyze a random object from the Kepler dataset.</p>
+             </header>
+ 
+             <div>
+                <div class="flex justify-center mb-8 mt-4 md:mt-6">
+                    <!-- moved the button a bit lower for better visibility -->
+                    <div class="w-full flex justify-center">
+                        <!-- make a proper interactive button and prevent accidental form submission -->
+                        <button type="button" id="randomBtn" class="cta-button pulse bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold text-lg py-4 px-8 rounded-full flex items-center justify-center shadow-xl" style="min-width:280px; margin-top:1.5rem; z-index:70;" aria-label="Analyze a random Kepler object" tabindex="0" aria-live="polite" aria-disabled="false">
+                         <span id="btn-text" class="text-base md:text-lg">Analyze a Random Object</span>
+                         <div id="btn-loader" class="loader hidden ml-3" aria-hidden="true"></div>
+                        </button>
+                    </div>
+                 </div>
+ 
+                 <!-- Result Card -->
+                 <div id="resultCard" class="result-card glass-card rounded-2xl p-6">
+                    <h2 class="text-2xl font-bold text-white mb-2" id="resultObjectName"></h2>
+                    <p class="text-xl font-medium mb-6" id="resultClassification"></p>
+
+                    <div class="space-y-5">
+                        <!-- Orbits Star Likelihood -->
+                        <div class="criterion">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm font-medium text-gray-300">Orbits a Star</span>
+                                <span class="text-sm font-medium text-gray-300" id="orbitsScore"></span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div id="orbitsBar" class="progress-bar h-2 bg-green-500 rounded-full"></div>
+                            </div>
+                        </div>
+
+                        <!-- Round Shape Likelihood -->
+                        <div class="criterion">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm font-medium text-gray-300">Is Round (Hydrostatic Equilibrium)</span>
+                                <span class="text-sm font-medium text-gray-300" id="roundScore"></span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div id="roundBar" class="progress-bar h-2 bg-blue-500 rounded-full"></div>
+                            </div>
+                        </div>
+
+                        <!-- Cleared Orbit Likelihood -->
+                        <div class="criterion">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm font-medium text-gray-300">Has Cleared its Orbit</span>
+                                <span class="text-sm font-medium text-gray-300" id="clearedScore"></span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div id="clearedBar" class="progress-bar h-2 bg-purple-500 rounded-full"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p id="resultReason" class="mt-6 text-sm text-gray-400 bg-gray-800/50 p-3 rounded-lg"></p>
+                </div>
+
+                <!-- Error Message -->
+                <div id="errorMsg" class="hidden text-center text-red-400 p-4 bg-red-900/20 rounded-lg mt-8"></div>
+
+                <!-- Assistant UI (small, local) -->
+                <div id="assistantBox" class="mt-6 glass-card p-3 rounded-lg bg-gray-900/60 text-gray-200">
+                    <div class="flex items-center gap-2">
+                        <input id="ask-input" class="flex-1 bg-gray-800/60 rounded px-3 py-2 text-sm outline-none" placeholder="Ask assistant or train: question|answer" />
+                        <button id="ask-btn" class="bg-sky-600 px-3 py-2 rounded text-white text-sm">Ask</button>
+                    </div>
+                    <div id="ask-history" class="mt-3 text-sm space-y-2 max-h-40 overflow:auto"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+ 
+    <script>
+         const dataStore = new Map();
+         let isDataLoaded = false;
+         
+         // --- Embed CSV data directly as a string ---
+         const csvData = `name,orbits_star_likelihood,round_shape_likelihood,cleared_orbit_likelihood
+K00752.01,1.0,0.95,0.95
+K00752.02,1.0,1.0,0.95
+K00753.01,1.0,1.0,0.0
+K00754.01,1.0,1.0,0.1
+K00755.01,1.0,1.0,0.95
+K00756.01,1.0,1.0,0.95
+K00756.02,1.0,1.0,0.95
+K00756.03,1.0,0.8,0.95
+K00114.01,1.0,1.0,0.1
+K00757.01,1.0,1.0,0.95
+K00001.01,1.0,1.0,0.95
+K00002.01,1.0,1.0,0.95
+K00010.01,1.0,1.0,0.95
+K00112.02,1.0,0.68,0.95
+K00742.01,1.0,1.0,0.1
+K00743.01,1.0,1.0,0.1
+K00744.01,1.0,1.0,0.1
+K00745.01,1.0,1.0,0.1
+K00746.01,1.0,0.99,0.95
+K00747.01,1.0,1.0,0.95
+K00748.01,1.0,0.8,0.1
+K00749.01,1.0,1.0,0.95
+K00749.02,1.0,0.82,0.95
+K00749.03,1.0,0.72,0.95
+K00113.01,1.0,1.0,0.1
+K00750.01,1.0,1.0,0.95
+K00751.01,1.0,1.0,0.95
+K00769.01,1.0,0.96,0.95
+K00770.01,1.0,1.0,0.1
+K00771.01,1.0,1.0,0.1
+K00772.01,1.0,1.0,0.1
+K00773.01,1.0,1.0,0.95
+K00757.02,1.0,1.0,0.95
+K00757.03,1.0,1.0,0.95
+K00758.01,1.0,1.0,0.95
+K00759.01,1.0,1.0,0.95
+K00759.02,1.0,0.92,0.95
+K00760.01,1.0,1.0,0.95
+K00761.01,1.0,1.0,0.1
+K00762.01,1.0,0.92,0.95
+K00763.01,1.0,1.0,0.1
+K00115.01,1.0,1.0,0.95
+K00764.01,1.0,1.0,0.95
+K00765.01,1.0,1.0,0.95
+K00766.01,1.0,1.0,0.95
+K00767.01,1.0,1.0,0.95
+K00768.01,1.0,1.0,0.1
+K00786.01,1.0,0.87,0.95
+K00787.01,1.0,1.0,0.95
+K00787.02,1.0,1.0,0.95
+K00788.01,1.0,1.0,0.95
+K00116.01,1.0,1.0,0.95
+K00115.02,1.0,0.85,0.95
+K00774.01,1.0,1.0,0.1
+K00775.01,1.0,0.89,0.95
+K00775.02,1.0,0.93,0.95
+K00775.03,1.0,0.89,0.95
+K00776.01,1.0,1.0,0.95
+K00777.01,1.0,1.0,0.999
+K00778.01,1.0,0.89,0.95
+K00779.01,1.0,1.0,0.1
+K00780.01,1.0,0.97,0.95
+K00780.02,1.0,1.0,0.993
+K00115.03,1.0,0.47,0.871
+K00781.01,1.0,1.0,0.95
+K00782.01,1.0,1.0,0.95
+K00783.01,1.0,1.0,0.95
+K00784.01,1.0,0.88,0.95
+K00784.02,1.0,0.87,0.95
+K00785.01,1.0,1.0,0.95
+K00116.02,1.0,1.0,0.95
+K00798.01,1.0,1.0,0.1
+K00799.01,1.0,1.0,0.1
+K00800.01,1.0,1.0,0.95
+K00800.02,1.0,1.0,0.95
+K00789.01,1.0,0.87,0.0
+K00790.01,1.0,1.0,0.95
+K00790.02,1.0,0.97,0.95
+K00791.01,1.0,1.0,0.95
+K00792.01,1.0,1.0,0.1
+K00793.01,1.0,1.0,0.1
+K00794.01,1.0,0.91,0.95
+K00795.01,1.0,1.0,0.95
+K00796.01,1.0,1.0,0.1
+K00797.01,1.0,1.0,1.0
+K00812.02,1.0,0.89,0.95
+K00812.03,1.0,0.86,0.95
+K00116.04,1.0,0.72,0.95
+K00812.04,1.0,0.69,0.95
+K00813.01,1.0,1.0,0.95
+K00814.01,1.0,0.96,0.95
+K00801.01,1.0,1.0,0.95
+K00802.01,1.0,1.0,1.0
+K00803.01,1.0,1.0,0.1
+K00804.01,1.0,1.0,0.95
+K00805.01,1.0,1.0,0.1
+K00806.01,1.0,1.0,0.95
+K00116.03,1.0,0.56,0.95
+K00806.02,1.0,1.0,0.95
+K00806.03,1.0,0.87,0.95
+K00807.01,1.0,1.0,0.1
+K00808.01,1.0,0.82,0.1
+K00809.01,1.0,1.0,0.95
+K00810.01,1.0,1.0,0.95
+K00811.01,1.0,1.0,0.95
+K00812.01,1.0,0.9,0.95
+K00828.01,1.0,1.0,0.1
+K00829.01,1.0,1.0,0.95
+K00117.02,1.0,0.82,0.95
+K00829.02,1.0,1.0,0.95
+K00829.03,1.0,1.0,0.95
+K00830.01,1.0,1.0,0.95
+K00815.01,1.0,1.0,1.0
+K00816.01,1.0,1.0,0.95
+K00817.01,1.0,0.85,0.95
+K00817.02,1.0,0.85,0.95
+K00818.01,1.0,0.92,0.95
+K00819.01,1.0,1.0,0.1
+K00820.01,1.0,1.0,0.0
+K00011.01,1.0,1.0,0.1
+K00117.01,1.0,1.0,0.95
+K00821.01,1.0,1.0,0.95
+K00822.01,1.0,1.0,0.1
+K00823.01,1.0,1.0,0.0
+K00824.01,1.0,1.0,0.95
+K00825.01,1.0,0.92,0.95
+K00825.02,1.0,0.76,0.95
+K00826.01,1.0,0.99,0.95
+K00827.01,1.0,1.0,0.1
+K00839.01,1.0,1.0,0.1
+K00840.01,1.0,1.0,0.95
+K00841.01,1.0,1.0,0.95
+K00117.04,1.0,0.65,0.95
+K00841.02,1.0,1.0,0.95
+K00831.01,1.0,1.0,0.1
+K00832.01,1.0,1.0,0.1
+K00833.01,1.0,1.0,0.1
+K00834.01,1.0,1.0,0.95
+K00834.02,1.0,1.0,0.95
+K00834.03,1.0,0.96,0.95
+K00834.04,1.0,0.8,0.95
+K00117.03,1.0,0.78,0.95
+K00834.05,1.0,1.0,0.95
+K00835.01,1.0,0.97,0.95
+K00835.02,1.0,0.97,0.95
+K00836.01,1.0,1.0,0.1
+K00837.01,1.0,0.85,0.95
+K00837.02,1.0,0.77,0.95
+K00838.01,1.0,1.0,0.1
+K00850.01,1.0,1.0,0.95
+K00851.01,1.0,1.0,0.95
+K00852.01,1.0,1.0,0.95
+K00853.01,1.0,1.0,0.95
+K00853.02,1.0,1.0,0.95
+K00841.03,1.0,0.94,0.95
+K00842.01,1.0,0.96,0.95
+K00842.02,1.0,1.0,0.95
+K00843.01,1.0,1.0,0.95
+K00844.01,1.0,1.0,0.95
+K00845.01,1.0,1.0,0.95
+K00846.01,1.0,1.0,0.95
+K00847.01,1.0,1.0,0.95
+K00848.01,1.0,1.0,0.1
+K00118.01,1.0,0.96,0.95
+K00849.01,1.0,1.0,0.95
+K00867.01,1.0,1.0,0.95
+K00868.01,1.0,1.0,0.998
+K00869.01,1.0,1.0,0.95
+K00869.02,1.0,1.0,0.95
+K00869.03,1.0,0.96,0.95
+K00854.01,1.0,1.0,0.95
+K00855.01,1.0,1.0,0.95
+K00856.01,1.0,1.0,0.994
+K00857.01,1.0,0.99,0.95
+K00119.01,1.0,1.0,0.95
+K00857.02,1.0,0.96,0.95
+K00858.01,1.0,1.0,0.0
+K00859.01,1.0,1.0,0.1
+K00861.01,1.0,0.76,0.95
+K00862.01,1.0,1.0,0.1
+K00863.01,1.0,1.0,0.95
+K00864.01,1.0,1.0,0.95
+K00864.02,1.0,1.0,0.95
+K00864.03,1.0,1.0,0.95
+K00865.01,1.0,1.0,1.0
+K00119.02,1.0,1.0,0.95
+K00866.01,1.0,1.0,0.1
+K00880.01,1.0,1.0,0.95
+K00880.02,1.0,1.0,0.95
+K00880.03,1.0,0.99,0.95
+K00880.04,1.0,0.86,0.95
+K00881.01,1.0,1.0,0.95
+K00869.04,1.0,0.82,0.95
+K00870.01,1.0,0.84,0.95
+K00870.02,1.0,0.81,0.95
+K00871.01,1.0,1.0,0.0
+K00120.01,1.0,0.98,0.1
+K00872.01,1.0,1.0,0.95
+K00872.02,1.0,0.89,0.95
+K00873.01,1.0,1.0,0.95
+K00874.01,1.0,0.97,0.95
+K00874.02,1.0,0.78,0.95
+K00875.01,1.0,1.0,0.95
+K00876.01,1.0,1.0,0.1
+K00877.01,1.0,0.97,0.95
+K00877.02,1.0,0.93,0.95
+K00877.03,1.0,0.75,0.95
+K00121.01,1.0,1.0,0.1
+K00878.01,1.0,1.0,0.95
+K00123.01,1.0,1.0,0.95
+K00892.01,1.0,1.0,0.95
+K00892.02,1.0,0.84,0.95
+K00893.01,1.0,1.0,0.95
+K00894.01,1.0,1.0,0.1
+K00881.02,1.0,1.0,0.95
+K00882.01,1.0,1.0,0.1
+K00883.01,1.0,1.0,0.997
+K00884.01,1.0,1.0,0.95
+K00122.01,1.0,1.0,0.95
+K00884.02,1.0,1.0,0.0
+K00884.03,1.0,0.83,0.95
+K00886.01,1.0,0.83,0.95
+K00886.02,1.0,0.72,0.95
+K00886.03,1.0,0.72,0.95
+K00887.01,1.0,0.99,0.95
+K00888.01,1.0,1.0,0.1
+K00889.01,1.0,1.0,0.95
+K00890.01,1.0,1.0,0.95
+K00891.01,1.0,1.0,0.95
+K01102.02,1.0,1.0,0.95
+K01102.03,1.0,1.0,0.95
+K01102.04,1.0,0.91,0.95
+K01103.01,1.0,1.0,1.0
+K00150.02,1.0,1.0,0.95
+K01168.01,1.0,1.0,0.0
+K01169.01,1.0,0.73,1.0
+K01170.01,1.0,1.0,0.1
+K01171.01,1.0,1.0,0.0
+K00966.01,1.0,1.0,0.1
+K00967.01,1.0,1.0,0.1
+K00968.01,1.0,1.0,0.1
+K00969.01,1.0,1.0,0.1
+K00970.01,1.0,1.0,0.0
+K00971.01,1.0,1.0,1.0
+K01044.01,1.0,1.0,0.1
+K01045.01,1.0,1.0,0.1
+K01047.01,1.0,1.0,0.1
+K00014.01,1.0,1.0,0.1
+K00139.01,1.0,1.0,0.95
+K01104.01,1.0,1.0,0.1
+K01105.01,1.0,1.0,0.1
+K01106.01,1.0,0.99,0.95
+K01106.02,1.0,0.8,0.95
+K01107.01,1.0,1.0,0.1
+K01108.01,1.0,1.0,0.95
+K01172.01,1.0,1.0,0.1
+K01173.01,1.0,1.0,0.1
+K01174.01,1.0,1.0,0.0
+K01175.01,1.0,0.85,0.95
+K01175.02,1.0,0.79,0.95
+K01176.01,1.0,1.0,0.95
+K01177.01,1.0,1.0,0.1`;
+
+        // --- Data Loading and Parsing ---
+        function loadAndParseCSV() {
+            try {
+                const csvText = csvData;
+                const lines = csvText.trim().split('\n');
+                const headers = lines[0].split(',');
+
+                // Find indices of required columns
+                const nameIndex = headers.indexOf('name');
+                const orbitsIndex = headers.indexOf('orbits_star_likelihood');
+                const roundIndex = headers.indexOf('round_shape_likelihood');
+                const clearedIndex = headers.indexOf('cleared_orbit_likelihood');
+                
+                if (nameIndex === -1 || orbitsIndex === -1 || roundIndex === -1 || clearedIndex === -1) {
+                    throw new Error('CSV data is missing one of the required headers: name, orbits_star_likelihood, round_shape_likelihood, cleared_orbit_likelihood');
+                }
+
+                for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(',');
+                    const name = values[nameIndex];
+                    if (name) { // Ensure name is not empty
+                        const data = {
+                            orbits_star_likelihood: parseFloat(values[orbitsIndex]),
+                            round_shape_likelihood: parseFloat(values[roundIndex]),
+                            cleared_orbit_likelihood: parseFloat(values[clearedIndex]),
+                        };
+                        dataStore.set(name, data);
+                    }
+                }
+                isDataLoaded = true;
+                console.log(`Successfully loaded and parsed ${dataStore.size} exoplanet candidates.`);
+            } catch (error) {
+                console.error("Failed to load or parse CSV data:", error);
+                const errorMsgDiv = document.getElementById('errorMsg');
+                errorMsgDiv.textContent = 'Error: Could not parse the embedded CSV data. ' + error.message;
+                errorMsgDiv.classList.remove('hidden');
+            }
+        }
+
+        // --- Classification Logic ---
+        function classifyObject(name) {
+            const objectData = dataStore.get(name.trim());
+            if (!objectData) {
+                return null;
+            }
+
+            const { orbits_star_likelihood: orbits, round_shape_likelihood: round, cleared_orbit_likelihood: cleared } = objectData;
+
+            let classification, reason, colorClass;
+
+            const isPlanet = orbits >= 0.9 && round >= 0.9 && cleared >= 0.9;
+            const isDwarfPlanet = orbits >= 0.9 && round >= 0.9 && cleared < 0.9;
+
+            if (isPlanet) {
+                classification = 'Planet';
+                reason = 'This object meets all three criteria to be classified as a planet: it orbits a star, has sufficient mass to be nearly round, and has cleared its orbital neighborhood.';
+                colorClass = 'text-green-400';
+            } else if (isDwarfPlanet) {
+                classification = 'Dwarf Planet';
+                reason = 'This object orbits a star and is massive enough to be round, but it has not cleared its orbital neighborhood of other objects. This is the key distinction for a dwarf planet.';
+                colorClass = 'text-yellow-400';
+            } else {
+                classification = 'Not a Planet';
+                reason = 'This object fails to meet one or more of the fundamental criteria for being a planet. It might not orbit a star, be massive enough to be round, or has not cleared its orbit.';
+                colorClass = 'text-red-400';
+            }
+
+            return { classification, reason, colorClass, scores: { orbits, round, cleared } };
+        }
+
+        // --- UI Update Functions ---
+        function displayResult(name, result) {
+            document.getElementById('resultObjectName').textContent = name;
+            const classificationEl = document.getElementById('resultClassification');
+            classificationEl.textContent = result.classification;
+            classificationEl.className = `text-xl font-medium mb-6 ${result.colorClass}`;
+            
+            document.getElementById('resultReason').textContent = result.reason;
+
+            // Update scores and progress bars
+            document.getElementById('orbitsScore').textContent = `${(result.scores.orbits * 100).toFixed(0)}%`;
+            document.getElementById('orbitsBar').style.width = `${result.scores.orbits * 100}%`;
+
+            document.getElementById('roundScore').textContent = `${(result.scores.round * 100).toFixed(0)}%`;
+            document.getElementById('roundBar').style.width = `${result.scores.round * 100}%`;
+
+            document.getElementById('clearedScore').textContent = `${(result.scores.cleared * 100).toFixed(0)}%`;
+            document.getElementById('clearedBar').style.width = `${result.scores.cleared * 100}%`;
+            
+            const resultCard = document.getElementById('resultCard');
+            resultCard.classList.add('show');
+        }
+        
+        function displayError(message) {
+            const errorMsgDiv = document.getElementById('errorMsg');
+            errorMsgDiv.textContent = message;
+            errorMsgDiv.classList.remove('hidden');
+        }
+
+        function clearPreviousResults() {
+             document.getElementById('errorMsg').classList.add('hidden');
+             document.getElementById('resultCard').classList.remove('show');
+        }
+
+        function toggleButtonLoading(isLoading) {
+            document.getElementById('btn-text').style.display = isLoading ? 'none' : 'block';
+            document.getElementById('btn-loader').classList.toggle('hidden', !isLoading);
+            document.getElementById('randomBtn').disabled = isLoading;
+        }
+
+        // --- Event Listener (complete and defensive) ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAndParseCSV();
+            const randomBtn = document.getElementById('randomBtn');
+            if (!randomBtn) {
+                console.error('randomBtn not found in DOM');
+                return;
+            }
+
+            // main handler: selects a random key and runs classification flow
+            const handleRandomClassification = () => {
+                clearPreviousResults();
+                if (!isDataLoaded || dataStore.size === 0) {
+                    displayError('Data is not loaded or is empty. Please wait or check the console.');
+                    return;
+                }
+
+                toggleButtonLoading(true);
+                // ensure ARIA updated
+                randomBtn.setAttribute('aria-disabled', 'true');
+
+                setTimeout(() => { // small delay for UX
+                    try {
+                        const objectKeys = Array.from(dataStore.keys());
+                        const randomIndex = Math.floor(Math.random() * objectKeys.length);
+                        const randomObjectName = objectKeys[randomIndex];
+
+                        const result = classifyObject(randomObjectName);
+                        if (result) {
+                            displayResult(randomObjectName, result);
+                        } else {
+                            displayError(`Classification failed for "${randomObjectName}".`);
+                        }
+                    } catch (err) {
+                        console.error('Error during classification:', err);
+                        displayError('Unexpected error during classification. See console.');
+                    } finally {
+                        toggleButtonLoading(false);
+                        randomBtn.setAttribute('aria-disabled', 'false');
+                    }
+                }, 300);
+            };
+
+            // normal event binding
+            randomBtn.addEventListener('click', handleRandomClassification);
+            // keyboard activation for Enter / Space
+            randomBtn.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+                    ev.preventDefault();
+                    handleRandomClassification();
+                }
+            });
+            // defensive: expose globally and set onclick (helps if scripts or external tools call it)
+            window.triggerRandomClassification = handleRandomClassification;
+            randomBtn.onclick = () => window.triggerRandomClassification();
+
+            // accessibility: stop pulse when focused to avoid motion distraction
+            randomBtn.addEventListener('focus', () => randomBtn.classList.remove('pulse'));
+            randomBtn.addEventListener('blur', () => randomBtn.classList.add('pulse'));
+        });
+     </script>
+</body>
+</html>
